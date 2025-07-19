@@ -124,6 +124,7 @@ class FSDPSFTTrainer:
 
         # build model
         self._build_model_optimizer()
+        print("prepared model: OK")
 
         # Initialize checkpoint manager
         self._init_checkpoint_manager()
@@ -133,6 +134,7 @@ class FSDPSFTTrainer:
         if self.device_mesh.get_rank() == 0:
             print(self.config)
         self.device_name = self.config.trainer.device
+		print("prepared trainer: OK")
 
     def _normalize_config_bsz(self):
         dp_size = self.device_mesh.size(0) if not self.ulysses_device_mesh else self.ulysses_device_mesh.size(0)
@@ -730,6 +732,8 @@ class FSDPSFTTrainer:
                 global_step += 1
                 data = TensorDict(data, batch_size=self.config.data.train_batch_size).to(self.device_name)
                 metric = self.training_step(data)
+                print("prepared metric: ", metric)
+
                 if rank == 0:
                     tracking.log(data=metric, step=global_step)
 
@@ -780,8 +784,8 @@ def run_sft(config):
     local_model_path = copy_to_local(src=config.model.partial_pretrain, verbose=True)
     tokenizer = hf_tokenizer(local_model_path, trust_remote_code=config.model.trust_remote_code)
     train_dataset = create_sft_dataset(config.data.train_files, config.data, tokenizer)
-    val_dataset = create_sft_dataset(config.data.val_files, config.data, tokenizer)
-
+    val_dataset = create_sft_dataset(config.data.val_files, config.data, tokenizer) 
+	print("prepared datasets: OK")
     trainer = FSDPSFTTrainer(
         config=config,
         device_mesh=device_mesh,
@@ -790,7 +794,7 @@ def run_sft(config):
         train_dataset=train_dataset,
         val_dataset=val_dataset,
     )
-
+    
     trainer.fit()
 
     destroy_global_process_group()
