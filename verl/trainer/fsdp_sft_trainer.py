@@ -125,7 +125,6 @@ class FSDPSFTTrainer:
 
         # build model
         self._build_model_optimizer()
-        print("prepared model: OK")
 
         # Initialize checkpoint manager
         self._init_checkpoint_manager()
@@ -734,8 +733,6 @@ class FSDPSFTTrainer:
                 global_step += 1
                 data = TensorDict(data, batch_size=self.config.data.train_batch_size).to(self.device_name)
                 metric = self.training_step(data)
-                print("prepared metric: ", metric)
-
                 if rank == 0:
                     tracking.log(data=metric, step=global_step)
 
@@ -786,8 +783,8 @@ def run_sft(config):
     local_model_path = copy_to_local(src=config.model.partial_pretrain, verbose=True)
     tokenizer = hf_tokenizer(local_model_path, trust_remote_code=config.model.trust_remote_code)
     train_dataset = create_sft_dataset(config.data.train_files, config.data, tokenizer)
-    val_dataset = create_sft_dataset(config.data.val_files, config.data, tokenizer) 
-    print("prepared datasets: OK")
+    val_dataset = create_sft_dataset(config.data.val_files, config.data, tokenizer)
+
     trainer = FSDPSFTTrainer(
         config=config,
         device_mesh=device_mesh,
@@ -796,7 +793,7 @@ def run_sft(config):
         train_dataset=train_dataset,
         val_dataset=val_dataset,
     )
-    
+
     trainer.fit()
 
     destroy_global_process_group()
