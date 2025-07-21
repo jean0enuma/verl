@@ -35,7 +35,7 @@ wget -nv https://github.com/flashinfer-ai/flashinfer/releases/download/v0.2.2/fl
 if [ $USE_MEGATRON -eq 1 ]; then
     echo "4. install TransformerEngine and Megatron"
     echo "Notice that TransformerEngine installation can take very long time, please be patient"
-    NVTE_FRAMEWORK=pytorch pip3 install --no-deps git+https://github.com/NVIDIA/TransformerEngine.git@v2.2.1
+    NVTE_FRAMEWORK=pytorch pip3 install --no-deps git+https://github.com/NVIDIA/TransformerEngine.git@v2.2.1 --use-pep517 --no-build-isolation
     pip3 install --no-deps git+https://github.com/NVIDIA/Megatron-LM.git@core_v0.12.2
 fi
 
