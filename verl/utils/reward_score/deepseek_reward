@@ -2,57 +2,8 @@ import math
 import re
 from collections import Counter
 
-from transformers import AutoTokenizer
 
-TOKENIZER = AutoTokenizer.from_pretrained("microsoft/Phi-4-reasoning-plus")
 
-# 論文のセクション4.1および4.2から引用した定数
-# 報酬関数で使用する長さのパラメータ
-L_MAX = 31744
-L_POS_CONTROL = 25600
-L_NEG_CONTROL = 3702
-
-# 報酬値の範囲
-R_MAX_POS = 1.0
-R_MIN_POS = 0.5
-R_MAX_NEG = -0.5
-R_MIN_NEG = -1.0
-
-# 最終的な報酬の重み
-W_ACC = 8 / 13
-W_REP = 1 / 13
-
-# 繰り返しペナルティのパラメータ
-NGRAM_SIZE = 5
-NGRAM_FREQ_THRESHOLD = 5
-
-def parse_solution_with_box(solution_str: str) -> tuple[str | None, str | None, bool]:
-    """
-    <think>{思考過程}</think>{...}\\boxed{答え} という形式の文字列を解析します。
-
-    Args:
-        solution_str: モデルが生成した出力文字列。
-
-    Returns:
-        タプル (thinking_process, answer, is_format_valid)。
-        フォーマットが不正な場合は (None, None, False) を返します。
-    """
-    # <think>タグ内の思考過程と、\boxed{}タグ内の答えを抽出する正規表現
-    # '.*?' は、<think>タグと\boxed{}タグの間の任意の文字列にマッチします。
-    # re.DOTALL は、'.'が改行文字にもマッチするようにします。
-    pattern = "<think>(.*?)</think>.*?\\boxed\{(.*?)\}"
-    match = re.search(pattern, solution_str, re.DOTALL)
-
-    if match:
-        # グループ1が<think>タグの内容
-        thinking_process = match.group(1).strip()
-        # グループ2が\boxed{}タグの内容
-        answer = match.group(2).strip()
-        is_format_valid = True
-        return thinking_process, answer, is_format_valid
-    else:
-        # パターンにマッチしない場合はフォーマットが不正と判断
-        return None, None, False
 def parse_solution(solution_str: str) -> tuple[str | None, str | None, bool]:
     """
     <think>...</think>{answer} という構造の文字列を解析する。
@@ -74,31 +25,6 @@ def parse_solution(solution_str: str) -> tuple[str | None, str | None, bool]:
         # thinkタグが見つからない、または形式が不正
         return None, None, False
 
-def _compute_repetition_penalty(text: str) -> float:
-    """
-    n-gramの頻度に基づいて繰り返しペナルティを計算します。
-    """
-    words = text.split()
-    if len(words) < NGRAM_SIZE:
-        return 0.0
-    # n-gramを生成
-    ngrams = [" ".join(words[i:i+NGRAM_SIZE]) for i in range(len(words) - NGRAM_SIZE + 1)]
-    if not ngrams:
-        return 0.0
-
-    ngram_counts = Counter(ngrams)
-    frequent_ngrams = {k: v for k, v in ngram_counts.items() if v > NGRAM_FREQ_THRESHOLD}
-
-    if not frequent_ngrams:
-        return 0.0
-
-    term1 = len(frequent_ngrams) / len(ngrams)
-    max_freq = max(frequent_ngrams.values())
-    total_possible_ngrams = len(words) / NGRAM_SIZE if len(words) > 0 else 1
-    term2 = max_freq / total_possible_ngrams
-
-    penalty = -max(term1, term2)
-    return penalty
 
 def compute_score(solution_str: str, ground_truth: str):
     """
