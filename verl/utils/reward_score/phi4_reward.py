@@ -55,7 +55,7 @@ def _compute_repetition_penalty(text: str) -> float:
     words = text.split()
     if len(words) < NGRAM_SIZE:
         return 0.0
-
+    # n-gramを生成
     ngrams = [" ".join(words[i:i+NGRAM_SIZE]) for i in range(len(words) - NGRAM_SIZE + 1)]
     if not ngrams:
         return 0.0
@@ -85,14 +85,15 @@ def compute_score(solution_str: str, ground_truth: str):
     """
     # 1. 出力文字列を解析し、フォーマットを検証
     thinking_process, answer, is_format_valid = parse_solution(solution_str)
-
+    L=len(TOKENIZER.tokenize(solution_str))
     # 2. フォーマット違反のオーバーライドを処理
     # <think>タグが不正な場合は is_format_valid が False になる
     if not is_format_valid:
         r_acc_scaled = -1.0
     # 生成が不完全な場合
-    elif TOKENIZER.eos_token not in TOKENIZER.tokenize(solution_str):
-        # 生成が不完全な場合、フォーマット違反として扱う
+    elif L >= L_MAX:
+        # imcomplete(eostokenなし)はこの関数では厳密な実装はできないので，max_lengthを超えた場合にフォーマット違反として扱う
+        # ここでは、L_MAXを超える場合にフォーマット違反として扱う
         r_acc_scaled = -0.5
     else:
     	# 3. フォーマットが正常な場合、長さ認識型の正解度報酬を計算
