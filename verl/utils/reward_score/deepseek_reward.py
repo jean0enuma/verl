@@ -1,3 +1,6 @@
+###
+#deepseek r1の報酬関数を実装
+###
 import math
 import re
 from collections import Counter

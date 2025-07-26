@@ -1,3 +1,6 @@
+###
+#phi4-reasoningの報酬関数を実装
+###
 import math
 import re
 from collections import Counter
