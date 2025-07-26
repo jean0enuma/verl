@@ -2,6 +2,10 @@ import math
 import re
 from collections import Counter
 
+from transformers import AutoTokenizer
+
+TOKENIZER = AutoTokenizer.from_pretrained("microsoft/Phi-4-reasoning-plus")
+
 # 論文のセクション4.1および4.2から引用した定数
 # 報酬関数で使用する長さのパラメータ
 L_MAX = 31744
@@ -70,12 +74,12 @@ def _compute_repetition_penalty(text: str) -> float:
     penalty = -max(term1, term2)
     return penalty
 
-def compute_score(solution_str: str, ground_truth: str, is_incomplete: bool = False):
+def compute_score(solution_str: str, ground_truth: str):
     """
     Phi-4-reasoning論文で説明されている報酬関数に基づいて最終的なスコアを計算します。
 
     Args:
-        solution_str: モデルから生成された完全なテキスト。
+        solution_str: モデルから生成された完全なテキスト。(tokenizedではなく、文字列形式)
         ground_truth: 正解。
         is_incomplete: 生成がシーケンス終了トークンなしで不完全な場合はTrue。
     """
@@ -87,15 +91,17 @@ def compute_score(solution_str: str, ground_truth: str, is_incomplete: bool = Fa
     if not is_format_valid:
         r_acc_scaled = -1.0
     # 生成が不完全な場合
-    elif is_incomplete:
+    elif TOKENIZER.eos_token not in TOKENIZER.tokenize(solution_str):
+        # 生成が不完全な場合、フォーマット違反として扱う
         r_acc_scaled = -0.5
     else:
-        # 3. フォーマットが正常な場合、長さ認識型の正解度報酬を計算
+    	# 3. フォーマットが正常な場合、長さ認識型の正解度報酬を計算
         is_correct = (answer is not None and str(answer) == str(ground_truth))
 
         # 注記: 論文ではトークン長が使用されていますが、ここでは単語数を代理として使用します。
         # 正確な実装には、トークナイザが必要です。
-        L = len(solution_str.split())
+        #L = len(solution_str.split())
+        L= len(TOKENIZER.tokenize(solution_str))
 
         if is_correct:
             rho_plus = min(1.0, max(0, L - L_POS_CONTROL) / (L_MAX - L_POS_CONTROL))
