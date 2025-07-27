@@ -147,6 +147,8 @@ def compute_score(solution_str: str, ground_truth: str, data_source: str):
     # 1. 出力文字列を解析し、フォーマットを検証
     thinking_process, answer, is_format_valid = parse_solution(solution_str)
     L=len(TOKENIZER.tokenize(solution_str))
+    print("---solution_str---")
+    print(solution_str)  # Debugging output
     # 2. フォーマット違反のオーバーライドを処理
     # <think>タグが不正な場合は is_format_valid が False になる
     if not is_format_valid:
@@ -161,6 +163,10 @@ def compute_score(solution_str: str, ground_truth: str, data_source: str):
     else:
         if data_source =="gsm8k":
             answer= extract_solution(solution_str=solution_str, method="strict")
+        print("---answer---")
+        print(answer)  # Debugging output
+        print("---ground_truth---")
+        print(ground_truth)  # Debugging output
     	# 3. フォーマットが正常な場合、長さ認識型の正解度報酬を計算
         is_correct = (answer is not None and answer == ground_truth)
 
