@@ -44,7 +44,7 @@ def default_compute_score(
         from . import gsm8k, phi4_reward
 
         #res = phi4_reward.compute_score(solution_str, ground_truth)
-        res = gsm8k.compute_score(solution_str, ground_truth)
+        res = gsm8k.compute_score(solution_str, ground_truth,data_source)
     elif data_source in ["lighteval/MATH", "DigitalLearningGmbH/MATH-lighteval"]:
         from . import math
 

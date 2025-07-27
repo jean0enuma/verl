@@ -28,6 +28,8 @@ W_REP = 1 / 13
 # 繰り返しペナルティのパラメータ
 NGRAM_SIZE = 5
 NGRAM_FREQ_THRESHOLD = 5
+_SOLUTION_CLIP_CHARS = 300
+
 def extract_solution(solution_str, method="strict"):
     assert method in ["strict", "flexible"]
 
