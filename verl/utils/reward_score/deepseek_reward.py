@@ -7,8 +7,6 @@ from collections import Counter
 
 from Levenshtein import ratio as levenshtein_ratio
 
-TOKENIZER = AutoTokenizer.from_pretrained("microsoft/Phi-4-reasoning-plus")
-
 L_MAX= 31744
 def parse_solution_with_box(solution_str: str) -> tuple[str | None, str | None, bool]:
     """

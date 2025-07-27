@@ -28,7 +28,36 @@ W_REP = 1 / 13
 # 繰り返しペナルティのパラメータ
 NGRAM_SIZE = 5
 NGRAM_FREQ_THRESHOLD = 5
+def extract_solution(solution_str, method="strict"):
+    assert method in ["strict", "flexible"]
 
+    # Optimization: Regular expression matching on very long strings can be slow.
+    # For math problems, the final answer is usually at the end.
+    # We only match on the last 300 characters, which is a safe approximation for 300 tokens.
+    if len(solution_str) > _SOLUTION_CLIP_CHARS:
+        solution_str = solution_str[-_SOLUTION_CLIP_CHARS:]
+
+    if method == "strict":
+        # this also tests the formatting of the model
+        solutions = re.findall("#### (\\-?[0-9\\.\\,]+)", solution_str)
+        if len(solutions) == 0:
+            final_answer = None
+        else:
+            # take the last solution
+            final_answer = solutions[-1].replace(",", "").replace("$", "")
+    elif method == "flexible":
+        answer = re.findall("(\\-?[0-9\\.\\,]+)", solution_str)
+        final_answer = None
+        if len(answer) == 0:
+            # no reward is there is no answer
+            pass
+        else:
+            invalid_str = ["", "."]
+            # find the last number that is not '.'
+            for final_answer in reversed(answer):
+                if final_answer not in invalid_str:
+                    break
+    return final_answer
 def parse_solution_with_box(solution_str: str) -> tuple[str | None, str | None, bool]:
     """
     <think>{思考過程}</think>{...}\\boxed{答え} という形式の文字列を解析します。
@@ -103,14 +132,15 @@ def _compute_repetition_penalty(text: str) -> float:
     penalty = -max(term1, term2)
     return penalty
 
-def compute_score(solution_str: str, ground_truth: str):
+def compute_score(solution_str: str, ground_truth: str, data_source: str):
     """
     Phi-4-reasoning論文で説明されている報酬関数に基づいて最終的なスコアを計算します。
 
     Args:
         solution_str: モデルから生成された完全なテキスト。(tokenizedではなく、文字列形式)
         ground_truth: 正解。
-        is_incomplete: 生成がシーケンス終了トークンなしで不完全な場合はTrue。
+        data_source: データソースの名前。現在は "gsm8k" のみ対応。
+        
     """
     # 1. 出力文字列を解析し、フォーマットを検証
     thinking_process, answer, is_format_valid = parse_solution(solution_str)
@@ -127,6 +157,8 @@ def compute_score(solution_str: str, ground_truth: str):
         # TODO:imcompleteの完全な実装
         r_acc_scaled = -0.5
     else:
+        if data_source =="gsm8k":
+            answer= extract_solution(solution_str=solution_str, method="strict")
     	# 3. フォーマットが正常な場合、長さ認識型の正解度報酬を計算
         is_correct = (answer is not None and str(answer) == str(ground_truth))
 
