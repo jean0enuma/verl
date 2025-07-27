@@ -162,7 +162,7 @@ def compute_score(solution_str: str, ground_truth: str, data_source: str):
         if data_source =="gsm8k":
             answer= extract_solution(solution_str=solution_str, method="strict")
     	# 3. フォーマットが正常な場合、長さ認識型の正解度報酬を計算
-        is_correct = (answer is not None and str(answer) == str(ground_truth))
+        is_correct = (answer is not None and answer == ground_truth)
 
         # 注記: 論文ではトークン長が使用されていますが、ここでは単語数を代理として使用します。
         # 正確な実装には、トークナイザが必要です。
