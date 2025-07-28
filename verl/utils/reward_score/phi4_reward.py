@@ -41,7 +41,7 @@ def extract_solution(solution_str, method="strict"):
 
     if method == "strict":
         # this also tests the formatting of the model
-        solutions = re.findall("#### (\\-?[0-9\\.\\,]+)", solution_str)
+        solutions = re.findall("####(\\-?[0-9\\.\\,]+)", solution_str)
         if len(solutions) == 0:
             final_answer = None
         else:
@@ -161,8 +161,10 @@ def compute_score(solution_str: str, ground_truth: str, data_source: str):
         # TODO:imcompleteの完全な実装
         r_acc_scaled = -0.5
     else:
-        if data_source =="gsm8k":
-            answer= extract_solution(solution_str=solution_str, method="strict")
+        if data_source =="openai/gsm8k":
+            answer= extract_solution(solution_str=solution_str, method="flexible")
+        answer=re.sub(",", "", answer)# カンマを削除
+        answer=re.sub(" ", "", answer) # スペースを削除
         print("---answer---")
         print(answer)  # Debugging output
         print("---ground_truth---")
