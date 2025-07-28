@@ -169,6 +169,7 @@ def compute_score(solution_str: str, ground_truth: str, data_source: str):
         print(answer)  # Debugging output
         print("---ground_truth---")
         print(ground_truth)  # Debugging output
+        ground_truth = re.sub(",", "", ground_truth)  # カンマを削除
     	# 3. フォーマットが正常な場合、長さ認識型の正解度報酬を計算
         is_correct = (answer is not None and answer == ground_truth)
 
