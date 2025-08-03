@@ -61,41 +61,61 @@ def extract_solution(solution_str, method="strict"):
                     break
     return final_answer
 
+def find_last_boxed_content(text: str) -> str:
+    """
+    文字列中の最後の "\\boxed{...}" の中身を、入れ子括弧を考慮して抽出します。
+    エスケープされた括弧 \{ や \} は無視します。
+    """
+    try:
+        # 最後の "\\boxed{" の開始インデックスを探します
+        last_boxed_start_index = text.rfind("\\boxed{")
+        if last_boxed_start_index == -1:
+            return ""
 
+        # コンテンツの実際の開始位置
+        content_start_index = last_boxed_start_index + len("\\boxed{")
+
+        # 対応する閉じ括弧 '}' を探します
+        brace_level = 1
+        for i in range(content_start_index, len(text)):
+            char = text[i]
+
+            # LaTeXでエスケープされた括弧 \{ や \} はレベル計算に含めません
+            if text[i-1] == '\\' and (char == '{' or char == '}'):
+                continue
+            
+            if char == '{':
+                brace_level += 1
+            elif char == '}':
+                brace_level -= 1
+            
+            # brace_levelが0になったら、それが対応する閉じ括弧です
+            if brace_level == 0:
+                return text[content_start_index:i]
+        
+        # 最後まで見ても対応する閉じ括弧が見つからなかった場合
+        return ""
+
+    except Exception:
+        # 何らかのエラーが発生した場合
+        return ""
 def extract_thought_and_answer(solution_str: str) -> tuple[str, str, bool]:
     """
-    文字列から<think>で囲まれた思考プロセスと、最後の\\boxed{}で囲まれた答えを抽出します。
-
-    Args:
-        solution_str (str): 処理対象の文字列。
-
-    Returns:
-        tuple[str, str, bool]: 以下の3つの要素を含むタプル。
-            - thinking_process (str): <think>と</think>で囲まれた文字列。見つからない場合は空文字列。
-            - answer (str): 最後の\\boxed{}の中の文字列。見つからない場合は空文字列。
-            - is_format_valid (bool): <think>タグが存在すればTrue、しなければFalse。
+    文字列から<think>...</think>と最後の\\boxed{...}を抽出します。
+    \\boxed{...}内の入れ子括弧に対応しています。
     """
-    # <think>...</think> の内容を抽出します。re.DOTALLフラグにより改行もマッチ対象とします。
+    # <think>...</think> の抽出ロジックは変更ありません
     think_match = re.search(r"<think>(.*?)</think>", solution_str, re.DOTALL)
 
     if think_match:
-        # マッチした場合、その内容（グループ1）の前後の空白を削除して取得します。
         thinking_process = think_match.group(1).strip()
         is_format_valid = True
     else:
-        # マッチしなかった場合、空文字列とし、フォーマットは無効とします。
         thinking_process = ""
         is_format_valid = False
 
-    # \\boxed{...} の内容をすべて抽出します。
-    boxed_matches = re.findall("\\boxed\{(.*?)\}", solution_str, re.DOTALL)
-
-    if boxed_matches:
-        # 複数見つかった場合でも、最後の要素を取得します。
-        answer = boxed_matches[-1]
-    else:
-        # マッチしなかった場合は空文字列とします。
-        answer = ""
+    # \\boxed{...} の抽出を新しい堅牢な関数に置き換えます
+    answer = find_last_boxed_content(solution_str)
 
     return thinking_process, answer, is_format_valid
 def parse_solution(solution_str: str) -> tuple[str | None, str | None, bool]:
@@ -173,9 +193,9 @@ def compute_score(data_source: str, solution_str: str, ground_truth: str, extra_
         r_acc_scaled = -0.5
     else:
 		# 数式の記号を削除するための正規表現
-        code_regex = re.compile('[!"#$%&\'\\\\()*+,-./:;<=>?@[\\]^_`{|}~「」〔〕“”〈〉『』【】＆＊・（）＄＃＠。、？！｀＋￥％]')
-        answer = code_regex.sub("", answer)  # 数式の記号を削除
-        ground_truth = code_regex.sub("", ground_truth)  # 数式の記号を削除
+        #code_regex = re.compile('[!"#$%&\'\\\\()*+,-./:;<=>?@[\\]^_`{|}~「」〔〕“”〈〉『』【】＆＊・（）＄＃＠。、？！｀＋￥％]')
+        #answer = code_regex.sub("", answer)  # 数式の記号を削除
+        #ground_truth = code_regex.sub("", ground_truth)  # 数式の記号を削除
         print("---answer---")
         print(answer)  # Debugging output
         print("---ground_truth---")
@@ -202,5 +222,7 @@ def compute_score(data_source: str, solution_str: str, ground_truth: str, extra_
 
     # 5. 最終的な重み付きスコアを計算
     final_score = (W_ACC * r_acc_scaled) + (W_REP * r_rep)
+    print("---final_score---")
+    print(final_score)  # Debugging output
 
     return final_score
