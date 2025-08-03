@@ -60,33 +60,44 @@ def extract_solution(solution_str, method="strict"):
                 if final_answer not in invalid_str:
                     break
     return final_answer
-def parse_solution_with_box(solution_str: str) -> tuple[str | None, str | None, bool]:
+
+
+def extract_thought_and_answer(solution_str: str) -> tuple[str, str, bool]:
     """
-    <think>{思考過程}</think>{...}\\boxed{答え} という形式の文字列を解析します。
+    文字列から<think>で囲まれた思考プロセスと、最後の\\boxed{}で囲まれた答えを抽出します。
 
     Args:
-        solution_str: モデルが生成した出力文字列。
+        solution_str (str): 処理対象の文字列。
 
     Returns:
-        タプル (thinking_process, answer, is_format_valid)。
-        フォーマットが不正な場合は (None, None, False) を返します。
+        tuple[str, str, bool]: 以下の3つの要素を含むタプル。
+            - thinking_process (str): <think>と</think>で囲まれた文字列。見つからない場合は空文字列。
+            - answer (str): 最後の\\boxed{}の中の文字列。見つからない場合は空文字列。
+            - is_format_valid (bool): <think>タグが存在すればTrue、しなければFalse。
     """
-    # <think>タグ内の思考過程と、\boxed{}タグ内の答えを抽出する正規表現
-    # '.*?' は、<think>タグと\boxed{}タグの間の任意の文字列にマッチします。
-    # re.DOTALL は、'.'が改行文字にもマッチするようにします。
-    pattern = "<think>(.*?)</think>.*?\\boxed\{(.*?)\}"
-    match = re.search(pattern, solution_str, re.DOTALL)
+    # <think>...</think> の内容を抽出します。re.DOTALLフラグにより改行もマッチ対象とします。
+    think_match = re.search(r"<think>(.*?)</think>", solution_str, re.DOTALL)
 
-    if match:
-        # グループ1が<think>タグの内容
-        thinking_process = match.group(1).strip()
-        # グループ2が\boxed{}タグの内容
-        answer = match.group(2).strip()
+    if think_match:
+        # マッチした場合、その内容（グループ1）の前後の空白を削除して取得します。
+        thinking_process = think_match.group(1).strip()
         is_format_valid = True
-        return thinking_process, answer, is_format_valid
     else:
-        # パターンにマッチしない場合はフォーマットが不正と判断
-        return None, None, False
+        # マッチしなかった場合、空文字列とし、フォーマットは無効とします。
+        thinking_process = ""
+        is_format_valid = False
+
+    # \\boxed{...} の内容をすべて抽出します。
+    boxed_matches = re.findall("\\boxed\{(.*?)\}", solution_str, re.DOTALL)
+
+    if boxed_matches:
+        # 複数見つかった場合でも、最後の要素を取得します。
+        answer = boxed_matches[-1]
+    else:
+        # マッチしなかった場合は空文字列とします。
+        answer = ""
+
+    return thinking_process, answer, is_format_valid
 def parse_solution(solution_str: str) -> tuple[str | None, str | None, bool]:
     """
     <think>...</think>{answer} という構造の文字列を解析する。
@@ -134,7 +145,7 @@ def _compute_repetition_penalty(text: str) -> float:
     penalty = -max(term1, term2)
     return penalty
 
-def compute_score(solution_str: str, ground_truth: str, data_source: str):
+def compute_score(data_source: str, solution_str: str, ground_truth: str, extra_info=None):
     """
     Phi-4-reasoning論文で説明されている報酬関数に基づいて最終的なスコアを計算します。
 
@@ -145,7 +156,7 @@ def compute_score(solution_str: str, ground_truth: str, data_source: str):
         
     """
     # 1. 出力文字列を解析し、フォーマットを検証
-    thinking_process, answer, is_format_valid = parse_solution(solution_str)
+    thinking_process, answer, is_format_valid = extract_thought_and_answer(solution_str)
     L=len(TOKENIZER.tokenize(solution_str))
     print("---solution_str---")
     print(solution_str)  # Debugging output
@@ -161,8 +172,7 @@ def compute_score(solution_str: str, ground_truth: str, data_source: str):
         # TODO:imcompleteの完全な実装
         r_acc_scaled = -0.5
     else:
-        if data_source =="openai/gsm8k":
-            answer= extract_solution(solution_str=solution_str, method="flexible")
+		# 数式の記号を削除するための正規表現
         code_regex = re.compile('[!"#$%&\'\\\\()*+,-./:;<=>?@[\\]^_`{|}~「」〔〕“”〈〉『』【】＆＊・（）＄＃＠。、？！｀＋￥％]')
         answer = code_regex.sub("", answer)  # 数式の記号を削除
         ground_truth = code_regex.sub("", ground_truth)  # 数式の記号を削除
