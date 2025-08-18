@@ -3,6 +3,7 @@
 ###
 import math
 import re
+import signal
 from collections import Counter
 
 from sympy.parsing.latex import parse_latex
@@ -31,6 +32,9 @@ NGRAM_SIZE = 5
 NGRAM_FREQ_THRESHOLD = 5
 _SOLUTION_CLIP_CHARS = 300
 
+# タイムアウト時に呼び出され、例外を発生させる関数
+def timeout_handler(signum, frame):
+    raise TimeoutError("処理がタイムアウトしました。")
 def extract_solution(solution_str, method="strict"):
     assert method in ["strict", "flexible"]
 
@@ -178,14 +182,30 @@ def compute_score(data_source: str, solution_str: str, ground_truth: str, extra_
     """
     # 1. 出力文字列を解析し、フォーマットを検証
     thinking_process, answer, is_format_valid = extract_thought_and_answer(solution_str)
-    print(thinking_process)
-    print(answer)
-    print(is_format_valid)
     L=len(TOKENIZER.tokenize(solution_str))
     print("---solution_str---")
     print(solution_str)  # Debugging output
+
+    signal.signal(signal.SIGALRM, timeout_handler)
+    # 30秒でタイムアウトするように設定(必要に応じて変更)
+    signal.alarm(30)
+    try: 
+        latex_answer=parse_latex(str(answer).lower(),backend="lark")
+        latex_ground_truth=parse_latex(str(ground_truth).lower(),backend="lark")
+    except Exception as e:  # 必要に応じて全ての例外をキャッチ
+        latex_answer=str(answer).lower().replace(" ","")
+        latex_ground_truth=str(ground_truth).lower().replace(" ","")
+    finally:
+        signal.alarm(0)
+    print("---is_format_valid---")
+    print(is_format_valid)
+    print("---answer---")
+    print(answer)  # Debugging output
+    print("---ground_truth---")
+    print(ground_truth)  # Debugging output    
     # 2. フォーマット違反のオーバーライドを処理
     # <think>タグが不正な場合は is_format_valid が False になる
+    # answerが不適切な形の場合もフォーマット違反とする 
     if not is_format_valid:
         r_acc_scaled = -1.0
     # 生成が不完全な場合
@@ -196,15 +216,9 @@ def compute_score(data_source: str, solution_str: str, ground_truth: str, extra_
         # TODO:imcompleteの完全な実装
         r_acc_scaled = -0.5
     else:
-        print("---answer---")
-        print(answer)  # Debugging output
-        print("---ground_truth---")
-        print(ground_truth)  # Debugging output
-        answer=parse_latex(str(answer).lower(),backend="lark")
-        ground_truth=parse_latex(str(ground_truth).lower(), backend="lark")
-    	# 3. フォーマットが正常な場合、長さ認識型の正解度報酬を計算
-        is_correct = (answer is not None and answer == ground_truth)
-
+        # 3. 回答が正解かどうかを報酬に反映
+        #ground_truthがlatex構文に適していなかった場合，元のanswerと比較する           
+        is_correct= (latex_answer is not None and latex_answer == latex_ground_truth)
         # 注記: 論文ではトークン長が使用されていますが、ここでは単語数を代理として使用します。
         # 正確な実装には、トークナイザが必要です。
         #L = len(solution_str.split())

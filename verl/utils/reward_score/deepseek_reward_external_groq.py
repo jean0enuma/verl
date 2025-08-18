@@ -2,10 +2,58 @@
 #deepseek r1の報酬関数を実装
 ###
 import math
+import os
 import re
+import signal
 from collections import Counter
 
+from groq import Groq
+from sympy.parsing.latex import parse_latex
+
+
+def groq_match(answer,ground_truth):
+    client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+    system_input='''
+    Are the `answer` and `ground_truth` below semantically the same? Answer only with `True` or `False`. 
+    '''
+    # Set the system prompt
+    system_prompt = {
+        "role": "system",
+        "content": system_input
+    }
+
+    # Set the user prompt
+    user_input = f'''###answer:\n
+    {answer}\n
+    ###ground_truth:\n
+    {ground_truth}\n
+    ###judge:\n
+    '''
+    user_prompt = {
+        "role": "user", "content": user_input
+    }
+
+    # Initialize the chat history
+    chat_history = [system_prompt, user_prompt]
+
+    response = client.chat.completions.create(model="llama-3.1-8b-instant",
+                                                messages=chat_history,
+                                                max_tokens=5,
+                                                temperature=0.1)
+
+    # Print the response
+    
+    return response.choices[0].message.content
+
 #from Levenshtein import ratio as levenshtein_ratio
+
+
+
+
+#from Levenshtein import ratio as levenshtein_ratio
+# タイムアウト時に呼び出され、例外を発生させる関数
+def timeout_handler(signum, frame):
+    raise TimeoutError("処理がタイムアウトしました。")
 
 def find_last_boxed_content(text: str) -> str:
     """
@@ -29,16 +77,16 @@ def find_last_boxed_content(text: str) -> str:
             # LaTeXでエスケープされた括弧 \{ や \} はレベル計算に含めません
             if text[i-1] == '\\' and (char == '{' or char == '}'):
                 continue
-            
+
             if char == '{':
                 brace_level += 1
             elif char == '}':
                 brace_level -= 1
-            
+
             # brace_levelが0になったら、それが対応する閉じ括弧です
             if brace_level == 0:
                 return text[content_start_index:i]
-        
+
         # 最後まで見ても対応する閉じ括弧が見つからなかった場合
         return ""
 
@@ -49,11 +97,9 @@ def extract_thought_and_answer(solution_str: str) -> tuple[str, str, bool]:
     """
     文字列から<think>...</think>と最後の\\boxed{...}を抽出します。
     \\boxed{...}内の入れ子括弧に対応しています。
-    deepseekでは<think>開始タグは入力に含まれているため，</think>タグのみを検出
-
     """
     # <think>...</think> の抽出ロジックは変更ありません
-    think_match = re.search(r"(.*?)</think>", solution_str, re.DOTALL)
+    think_match = re.search(r"<think>(.*?)</think>", solution_str, re.DOTALL)
 
     if think_match:
         thinking_process = think_match.group(1).strip()
@@ -106,7 +152,7 @@ def compute_score(data_source: str, solution_str: str, ground_truth: str, extra_
     print("---answer---")
     print(answer)  # Debugging output
     print("---ground_truth---")
-    print(ground_truth)  # Debugging output  
+    print(ground_truth)  # Debugging output
     #option: reasoningの正解を取得する
     #thinking_process_truth,_, is_format_valid_truth = parse_solution(truth_reasoning)
     #if is_format_valid_truth:
@@ -118,9 +164,30 @@ def compute_score(data_source: str, solution_str: str, ground_truth: str, extra_
     else:
         r_format = 0
     # 3. 回答が正解かどうかを報酬に反映
-    answer=answer.lower().replace(" ","")
-    ground_truth=ground_truth.lower().replace(" ","")
-    is_correct = (answer is not None and answer == ground_truth)
+    signal.signal(signal.SIGALRM, timeout_handler)
+    # 30秒でタイムアウトするように設定(必要に応じて変更)
+    signal.alarm(30)
+    try:
+        latex_answer=parse_latex(str(answer).lower(),backend="lark")
+        latex_ground_truth=parse_latex(str(ground_truth).lower(),backend="lark")
+    except Exception as e:  # 必要に応じて全ての例外をキャッチ
+        latex_answer=str(answer).lower().replace(" ","")
+        latex_ground_truth=str(ground_truth).lower().replace(" ","")
+    finally:
+        signal.alarm(0)
+    is_correct = (latex_answer is not None and latex_answer == latex_ground_truth)
+    if not is_correct:
+        signal.alram(30)
+        try:
+            llm_correct_judge=groq_match(answer,ground_truth)
+        except Exception as e:
+            llm_correct_judge="False"
+        finally:
+            signal.alarm(0)
+        if llm_correct_judge=="True":
+            is_correct=True
+        else:
+            is_correct=False
     if is_correct:
         # 正解の場合、正解度報酬を1.0にスケーリング
         r_acc_scaled = 1.0
@@ -128,7 +195,7 @@ def compute_score(data_source: str, solution_str: str, ground_truth: str, extra_
         r_acc_scaled = 0.0  # Assign a default value for r_acc_scaled
     #(option) Levenshtein距離を使用してスコアを計算
     #r_leven = levenshtein_ratio(str(thinking_process), str(truth_reasoning))
-    
+
     final_score = (r_format + r_acc_scaled)/2# 平均を取ることでスコアを正規化
     print("---final_score---")
     print(final_score)  # Debugging output
